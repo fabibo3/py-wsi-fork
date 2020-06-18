@@ -101,7 +101,7 @@ def save_to_hdf5(db_location, patches, coords, file_name, labels):
 #                Option 3: save patches to disk                           #
 ###########################################################################
 
-def save_to_disk(db_location, patches, coords, file_name, labels):
+def save_to_disk(db_location, patches, coords, file_name, labels, seg_maps):
     """ Saves numpy patches to .png files (full resolution). 
         Meta data is saved in the file name.
         - db_location       folder to save images in
@@ -109,14 +109,23 @@ def save_to_disk(db_location, patches, coords, file_name, labels):
         - coords            x, y tile coordinates
         - file_name         original source WSI name
         - labels            patch labels (opt)
+        - seg_maps          segmentation maps (opt)
     """
+    save_seg_maps = len(seg_maps)
     save_labels = len(labels)
     for i, patch in enumerate(patches):
         # Construct the new PNG filename
         patch_fname = file_name + "_" + str(coords[i][0]) + "_" + str(coords[i][1]) + "_"
 
+        if save_seg_maps:
+            seg_patch_fname = file_name + "_" + str(coords[i][0]) + "_" +\
+            str(coords[i][1]) + "_gt_"
+
         if save_labels:
             patch_fname += str(labels[i])
+            seg_patch_fname += str(labels[i])
 
-        # Save the image.
+        # Save the image and optionally ground truth segmentation map
         Image.fromarray(patch).save(db_location + patch_fname + ".png")
+        if save_seg_maps:
+            seg_maps[i].save(db_location + seg_patch_fname + ".png")

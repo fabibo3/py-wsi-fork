@@ -190,16 +190,19 @@ class Turtle(object):
                                  overlap,
                                  load_xml=False,
                                  limit_bounds=True,
-                                 rows_per_txn=20):
+                                 rows_per_txn=20, 
+                                 gen_segmentation_map=False):
         """ Samples patches from all whole slide images in the dataset and stores them in the
             specified format.
-            - patch_size        the patch size in pixels to sample
-            - level             the tile level to sample at
-            - overlap           pixel overlap of patches
-            - limit_bounds      activates OpenSlide's automatic boundary limits (cuts out some background)
-            - rows_per_txn      how many rows in the WSI to sample (save in memory) before saving to disk
-                                a smaller number will use less RAM; a bigger number is slightly more
-                                efficient but will use more RAM.
+            - patch_size            the patch size in pixels to sample
+            - level                 the tile level to sample at
+            - overlap               pixel overlap of patches
+            - limit_bounds          activates OpenSlide's automatic boundary limits (cuts out some background)
+            - rows_per_txn          how many rows in the WSI to sample (save in memory) before saving to disk
+                                    a smaller number will use less RAM; a bigger number is slightly more
+                                    efficient but will use more RAM.
+            - gen_segmentation_map  if true, a binary segmentation map for each
+                                    patch is also stored
         """
         start_time = start_timer()
 
@@ -221,7 +224,9 @@ class Turtle(object):
         if self.storage_type == 'hdf5':
             self.__sample_store_hdf5(patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn)
         elif self.storage_type == 'disk':
-            self.__sample_store_disk(patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn)
+            self.__sample_store_disk(patch_size, level, overlap, xml_dir,
+                                     limit_bounds, rows_per_txn,
+                                     gen_segmentation_map)
         else:
             # LMDB by default.
             self.__sample_store_lmdb(patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn)
@@ -377,7 +382,8 @@ class Turtle(object):
         return patches, coords, classes, labels
 
 
-    def __sample_store_disk(self, patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn):
+    def __sample_store_disk(self, patch_size, level, overlap, xml_dir,
+                            limit_bounds, rows_per_txn, gen_segmentation_map):
         """ Same parameters as sample_and_store_patches().
         """
         total_count = 0
@@ -395,7 +401,8 @@ class Turtle(object):
                                 rows_per_txn=rows_per_txn,
                                 db_location=self.db_location,
                                 prefix=self.db_name,
-                                storage_option='disk')
+                                storage_option='disk',
+                                gen_segmentation_map=gen_segmentation_map)
 
             # Don't stop if one image fails.
             if patch_count <= 0:
