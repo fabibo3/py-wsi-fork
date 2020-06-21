@@ -213,13 +213,14 @@ def sample_and_store_patches(file_name,
         # rows_per_txn rows of patches. Write after last row regardless. HDF5 does NOT follow
         # this convention due to efficiency.
         if (y % rows_per_txn == 0 and y != 0) or y == y_tiles-1:
-            print(f"Saving tile rows {np.maximum(y-rows_per_txn+1, 0)} to {y}")
+            print(f"\nSaving tile rows {int((y-1)/rows_per_txn)*rows_per_txn} to {y}")
             if storage_option == 'disk':
                 save_to_disk(db_location, patches, coords, file_name[:-4],
                              labels, seg_maps)
             elif storage_option == 'lmdb':
                 # LMDB by default.
-                save_in_lmdb(env, patches, coords, file_name[:-4], labels)
+                save_in_lmdb(env, patches, coords, file_name[:-4], labels,
+                             seg_maps)
             if storage_option != 'hdf5':
                 del patches
                 del coords

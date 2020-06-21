@@ -3,3 +3,8 @@
 0.2 error-handling for cases when XML region name is not found in the provided label_map. Assigns labels by default to -1, prints error, and continues patch sampling and loading process.
 
 1.0 first main version with additional error handling, better memory management and config options, ability to sample patches and different ways to load patches from the databases.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Forked from https://github.com/ysbecca/py-wsi
+
+1.1 Added functionality for segmentation tasks for storage types 'disk' and 'lmdb'. This allows for not only storing a label associated to the center point of the patch but also the corresponding segmentation map for each patch. 
+

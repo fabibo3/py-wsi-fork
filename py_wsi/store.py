@@ -2,7 +2,7 @@
 
 These functions take patches and meta data as input and store them in the specified format.
 
-Author: @ysbecca
+Author: @ysbecca, Fabian Bongratz
 
 
 '''
@@ -22,16 +22,24 @@ from .item import *
 #                Option 1: Save to LMDB                                   #
 ###########################################################################
 
-def save_in_lmdb(env, patches, coords, file_name, labels=[]):
+def save_in_lmdb(env, patches, coords, file_name, labels=[], seg_maps=[]):
     use_label = False
+    use_seg_map = False
     if len(labels) > 0:
         use_label = True
+    if len(seg_maps) > 0:
+        use_seg_map = True
 
     with env.begin(write=True) as txn:
         # txn is a Transaction object
         for i in range(len(patches)):
             if use_label:
-                item = Item(patches[i], coords[i], labels[i])
+                if use_seg_map:
+                    item = SegItem(patches[i], coords[i], labels[i], seg_maps[i])
+                else:
+                    item = Item(patches[i], coords[i], labels[i])
+            elif use_seg_map:
+                item = SegItem(patches[i], coords[i], 0, seg_maps[i])
             else:
                 item = Item(patches[i], coords[i], 0)
 
@@ -116,14 +124,14 @@ def save_to_disk(db_location, patches, coords, file_name, labels, seg_maps):
     for i, patch in enumerate(patches):
         # Construct the new PNG filename
         patch_fname = file_name + "_" + str(coords[i][0]) + "_" + str(coords[i][1]) + "_"
-
-        if save_seg_maps:
-            seg_patch_fname = file_name + "_" + str(coords[i][0]) + "_" +\
-            str(coords[i][1]) + "_gt_"
+        seg_patch_fname = patch_fname
 
         if save_labels:
             patch_fname += str(labels[i])
             seg_patch_fname += str(labels[i])
+
+        if save_seg_maps:
+            seg_patch_fname = seg_patch_fname + "_gt"
 
         # Save the image and optionally ground truth segmentation map
         Image.fromarray(patch).save(db_location + patch_fname + ".png")

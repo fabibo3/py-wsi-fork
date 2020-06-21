@@ -5,12 +5,14 @@ An image-displaying function from imagepy.toolkit on GitHub:
 
 https://github.com/ysbecca/imagepy-toolkit
 
-Author: @ysbecca
+Author: @ysbecca, Fabian Bongratz
 
 
 '''
 
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import numpy as np
 
 
 def show_images(images, per_row, per_column):
@@ -41,3 +43,20 @@ def show_labeled_patches(images, clss):
     plt.show()
 
 
+def show_images_and_gt(images, coords, classes, labels, seg_maps):
+    max_coords = np.max(coords, axis=0)
+    per_row = max_coords[0] + 1
+    per_column = max_coords[1] + 1
+    fig = plt.figure(figsize=(per_row, per_column))
+    gs1 = gridspec.GridSpec(per_column, per_row) 
+    gs1.update(wspace=0.05, hspace=0.05) # set the spacing between axes. 
+    for i, image in enumerate(images):
+        ax = plt.subplot(gs1[i])
+        ax.imshow(image)
+        ax.imshow(seg_maps[i].squeeze(), alpha=0.25, cmap='Greens',
+                  vmin=np.min(labels), vmax=np.max(labels))
+        ax.axis("off")
+        ax.set_aspect('equal')
+
+    print(i)
+    plt.show()

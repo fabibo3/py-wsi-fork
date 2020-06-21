@@ -3,7 +3,8 @@
 Main py-wsi manager, Turtle, which keeps track of a collection of SVS images, and allows for
 patch sampling, storing, and accessing. 
 
-Author: @ysbecca
+Author: @ysbecca, Fabian Bongratz
+
 
 """
 import itertools
@@ -152,22 +153,26 @@ class Turtle(object):
                 return []
 
         # Fetch all the patches from each selected image in dataset.
-        all_patches, all_coords, all_cls, all_labels = [], [], [], []
+        all_patches, all_coords, all_cls, all_labels, all_seg_maps = [], [],
+        [], [], []
         for i in range(self.num_files):
             if select[i]:
-                patches, coords, classes, labels = self.get_patches_from_file(self.files[i])
+                patches, coords, classes, labels, seg_maps = self.get_patches_from_file(self.files[i])
                 all_patches.append(patches)
                 all_coords.append(coords)
                 all_cls.append(classes)
                 all_labels.append(labels)
+                all_seg_maps.append(seg_map)
 
         # Flatten the data into lists.
         all_patches = list(itertools.chain.from_iterable(x for x in all_patches))
         all_coords = list(itertools.chain.from_iterable(x for x in all_coords))
         all_cls = list(itertools.chain.from_iterable(x for x in all_cls))
         all_labels = list(itertools.chain.from_iterable(x for x in all_labels))
+        all_seg_maps = list(itertools.chain.from_iterable(x for x in
+                                                          all_seg_maps))
 
-        return all_patches, all_coords, all_cls, all_labels
+        return all_patches, all_coords, all_cls, all_labels, all_seg_maps
 
     def get_patches_from_file(self, file_name, verbose=False):
         """ Fetches the patches from one file, depending on storage method. 
@@ -229,7 +234,9 @@ class Turtle(object):
                                      gen_segmentation_map)
         else:
             # LMDB by default.
-            self.__sample_store_lmdb(patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn)
+            self.__sample_store_lmdb(patch_size, level, overlap, xml_dir,
+                                     limit_bounds, rows_per_txn,
+                                     gen_segmentation_map)
 
         end_timer(start_time)
 
@@ -316,7 +323,9 @@ class Turtle(object):
         if verbose:
             print("[py-wsi] loaded from", file_name, ".h5 file", np.shape(patches))
 
-        return patches, coords, classes, labels
+        # For compatibility with other storage types return [] (segmentation
+        # maps not implemented with hdf5)
+        return patches, coords, classes, labels, []
 
 
     def __sample_store_hdf5(self, patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn):
@@ -354,21 +363,26 @@ class Turtle(object):
             distinguish between other PNG images that may be in the directory; everything
             will be loaded.
         """
+        underscores = len(wsi_name.split("_"))-1
         # Get all files matching the WSI file name and correct file type.
-        patch_files = np.array(
-            [file for file in listdir(self.db_location) 
-            if isfile(join(self.db_location, file)) and '.png' in file and wsi_name in file])
-
-        patches, coords, classes, labels = [], [], [], []
+        all_files = [file for file in listdir(self.db_location) if isfile(join(self.db_location, file)) and '.png' in file and wsi_name in file]
+        seg_map_files = []
+        for f in all_files:
+            if 'gt' in f:
+                seg_map_files.append(f)
+                all_files.remove(f)
+        seg_map_files = np.asarray(seg_map_files)
+        patch_files = np.asarray(all_files)
+        patches, coords, classes, labels, seg_maps = [], [], [], [], []
         for f in patch_files:
             patches.append(np.array(Image.open(self.db_location + f), dtype=np.uint8))
 
             f_ = f.split('_')
-            coords.append([int(f_[1]), int(f_[2])])
+            coords.append([int(f_[underscores+1]), int(f_[underscores+2])])
 
             # Check for a label.
-            if len(f_[3]) > 4:
-                class_ = int(f_[3].split(".")[0])
+            if len(f_[underscores+3]) > 4:
+                class_ = int(f_[underscores+3].split(".")[0])
                 classes.append(class_)
                 l = np.zeros((len(self.label_map)))
                 l[class_] = 1
@@ -376,10 +390,15 @@ class Turtle(object):
             else:
                 # To be consistant with LMDB implementation.
                 classes.append(-1)
+
+        for f in seg_map_files:
+            seg_maps.append(np.array(Image.open(self.db_location + f),
+                                     dtype=np.uint8))
+
         if verbose:
             print("[py-wsi] loaded", len(patches), "patches from", wsi_name)
 
-        return patches, coords, classes, labels
+        return patches, coords, classes, labels, seg_maps
 
 
     def __sample_store_disk(self, patch_size, level, overlap, xml_dir,
@@ -442,15 +461,18 @@ class Turtle(object):
         coords = [i.coords for i in items]
         classes = [i.label for i in items]
 
+        seg_maps = [i.get_seg_map() for i in items if isinstance(i, SegItem)]
+
         # Check if there are labels to be fetched.
         if self.label_map != {}:
             labels = [i.get_label_array(len(self.label_map)) for i in items]
         else:
             print("[py-wsi]: no labels found for these patches.")
             labels = []
-        return patches, coords, classes, labels
+        return patches, coords, classes, labels, seg_maps
 
-    def __calculate_map_size(self, patch_size, level, overlap, limit_bounds):
+    def __calculate_map_size(self, patch_size, level, overlap, limit_bounds,
+                             gen_segmentation_map):
         """ Pre-calculates the LMDB map size for a database given the files.
         """
         total_bytes = 0
@@ -468,19 +490,30 @@ class Turtle(object):
             # Calculate total patch bytes, assuming colour (3 channels), bytes per int plus buffer.
             # If image is saved in float or double, this may be too conservative.
             total_bytes += (file_tiles * patch_size * patch_size * 3 * (sys.getsizeof(int()) + 4))
-            total_meta_bytes += file_tiles * 256
+            # Calculate bytes needed for segmentation maps, assuming one
+            # channel, bytes per int plus buffer
+            if gen_segmentation_map:
+                total_bytes += (file_tiles * patch_size * patch_size * (sys.getsizeof(int()) + 4))
+
+            # !!!Needs to be chosen application-specific!!!
+            total_meta_bytes += file_tiles * 4096
 
         return total_bytes, total_meta_bytes
 
-    def __sample_store_lmdb(self, patch_size, level, overlap, xml_dir, limit_bounds, rows_per_txn):
+    def __sample_store_lmdb(self, patch_size, level, overlap, xml_dir,
+                            limit_bounds, rows_per_txn, gen_segmentation_map):
         """ Samples patches and saves them in LMDB. Parameters from sample_and_store_patches():
-            - patch_size, level, overlap, limit_bounds, rows_per_txn.
+            - patch_size, level, overlap, limit_bounds, rows_per_txn,
+            gen_segmentation_map.
         """
 
         # First iteration to calculate exactly the size of the DB.
         # To deal with very large databases, it is suggested to save k databases, one for each 
         # k-fold cross validation set.
-        map_size, meta_map_size = self.__calculate_map_size(patch_size, level, overlap, limit_bounds)
+        map_size, meta_map_size = self.__calculate_map_size(patch_size, level,
+                                                            overlap,
+                                                            limit_bounds,
+                                                            gen_segmentation_map)
         print("Pre-calculated map sizes:")
         print(" - patch db:    ", map_size, "bytes")
         print(" - meta db:     ", meta_map_size, "bytes")
@@ -504,7 +537,8 @@ class Turtle(object):
                                 xml_dir=xml_dir,
                                 label_map=self.label_map,
                                 limit_bounds=limit_bounds,
-                                rows_per_txn=rows_per_txn)
+                                rows_per_txn=rows_per_txn,
+                                gen_segmentation_map = gen_segmentation_map)
 
             # Don't stop if one image fails.
             if patch_count <= 0:
