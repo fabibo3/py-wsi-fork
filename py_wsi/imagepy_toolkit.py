@@ -43,7 +43,11 @@ def show_labeled_patches(images, clss):
     plt.show()
 
 
-def show_images_and_gt(images, coords, classes, labels, seg_maps):
+def show_images_and_gt(images, coords, pixel_classes, seg_maps):
+    """
+    Show a whole WSI image together with its gt annotation, partioned into
+    patches
+    """
     max_coords = np.max(coords, axis=0)
     per_row = max_coords[0] + 1
     per_column = max_coords[1] + 1
@@ -54,9 +58,26 @@ def show_images_and_gt(images, coords, classes, labels, seg_maps):
         ax = plt.subplot(gs1[i])
         ax.imshow(image)
         ax.imshow(seg_maps[i].squeeze(), alpha=0.25, cmap='Greens',
-                  vmin=np.min(labels), vmax=np.max(labels))
+                  vmin=np.min(pixel_classes), vmax=np.max(pixel_classes))
         ax.axis("off")
         ax.set_aspect('equal')
 
     print(i)
+    plt.show()
+
+def show_patch_and_gt(images, seg_maps, pixel_classes, per_row, per_column):
+    """
+    Show WSI patches together with its gt annotation, partioned into
+    patches
+    """
+    fig = plt.figure(figsize=(25, 25))
+    data = images[:(per_row*per_column)]
+
+    for i, image in enumerate(data):
+        plt.subplot(per_column, per_row, i+1)
+        plt.imshow(image)
+        plt.imshow(seg_maps[i].squeeze(), alpha=0.25, cmap='Greens',
+                  vmin=np.min(pixel_classes), vmax=np.max(pixel_classes))
+        plt.axis("off")
+    
     plt.show()
