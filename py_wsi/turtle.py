@@ -451,7 +451,10 @@ class Turtle(object):
         with env.begin() as txn:
             for y_ in range(y - 1):
                 for x_ in range(x - 1):
-                    items.append(get_patch_from_lmdb(txn, x_, y_, file_name))
+                    item = get_patch_from_lmdb(txn, x_, y_, file_name)
+                    if item != None:
+                        items.append(item)
+                    # else ignore
         return items
 
     def __items_to_patches_and_meta(self, items):

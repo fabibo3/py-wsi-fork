@@ -225,7 +225,7 @@ def sample_and_store_patches(file_name,
                 del patches
                 del coords
                 del labels
-                patches, coords, labels = [], [], [] # Reset right away.
+                patches, coords, labels, seg_maps = [], [], [], [] # Reset right away.
 
         y += 1
         x = 0
@@ -239,3 +239,4 @@ def sample_and_store_patches(file_name,
         save_meta_in_lmdb(meta_env, file_name[:-4], [x_tiles, y_tiles])
 
     return count
+

@@ -49,8 +49,9 @@ def show_images_and_gt(images, coords, pixel_classes, seg_maps):
     patches
     """
     max_coords = np.max(coords, axis=0)
-    per_row = max_coords[0] + 1
-    per_column = max_coords[1] + 1
+    min_coords = np.min(coords, axis=0)
+    per_row = max_coords[0] - min_coords[0] + 1
+    per_column = max_coords[1] - min_coords[1] + 1
     fig = plt.figure(figsize=(per_row, per_column))
     gs1 = gridspec.GridSpec(per_column, per_row) 
     gs1.update(wspace=0.05, hspace=0.05) # set the spacing between axes. 
@@ -67,8 +68,7 @@ def show_images_and_gt(images, coords, pixel_classes, seg_maps):
 
 def show_patch_and_gt(images, seg_maps, pixel_classes, per_row, per_column):
     """
-    Show WSI patch together with its gt annotation, partioned into
-    patches
+    Show WSI patch together with its gt annotation
     """
     fig = plt.figure(figsize=(25, 25))
     data = images[:(per_row*per_column)]

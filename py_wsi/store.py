@@ -54,7 +54,11 @@ def save_meta_in_lmdb(meta_env, file, tile_dims):
 def get_patch_from_lmdb(txn, x, y, file_name):
     str_id = file_name + '-' + str(x) + '-' + str(y)
     raw_item = txn.get(str_id.encode('ascii'))
-    item = pickle.loads(raw_item)
+    if raw_item != None:
+        item = pickle.loads(raw_item)
+    else:
+        #print("[py_wsi] Warning: " + str_id + " not found in database.")
+        item = None
     return item
 
 def get_meta_from_lmdb(meta_env, file):
